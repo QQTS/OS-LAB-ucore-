@@ -1,0 +1,20 @@
+// lib/close.c
+#define __LIBRARY__#include <unistd.h>_syscall1(int, close, int, fd) 
+
+// include/unistd.h
+#define _syscall1(type,name,atype,a) 
+\type name(atype a) 
+\{ 
+\long __res; 
+\__asm__ volatile ("int $0x80"  // __asm__ volatile是GCC的内嵌汇编语法，用于在C语言程序中嵌入汇编代码。__volatile__修饰符强制编译器的优化器按原样执行代码。如果没有它，优化器可能认为它可以被直接删除，或者从循环中提取并缓存
+                                // int $0x80是一个软件中断，它在x86架构的Linux系统中用于执行系统调用
+\    : "=a" (__res)  // 输出操作数:将eax寄存器的值赋给__res变量。(在系统调用返回时，eax寄存器包含返回值)
+\    : "0" (__NR_##name),"b" ((long)(a))); // "0" (__NR_##name)经过宏展开，##name会被替换成close。功能：输入操作数，它将系统调用号放入eax寄存器。这里的__NR_##name是系统调用号
+                                           // "b" ((long)(a))也是输入操作数，它将参数a放入ebx寄存器。经过宏展开，a会被替换成fd
+\if (__res >= 0) 
+\    return (type) __res; 
+\errno = -__res; 
+\return -1; 
+\}
+// 如果系统调用成功，那么返回值（存储在eax寄存器中）会被赋给变量__res，并作为函数的返回值。
+// 如果系统调用失败，那么错误号（存储在eax寄存器中）会被赋给变量errno，并且函数返回-1

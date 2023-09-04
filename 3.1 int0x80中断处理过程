@@ -34,26 +34,28 @@ void sched_init(void){//    ……    set_system_gate(0x80,&system_call);}
 // kernel/system_call.s
 !……! # 这是系统调用总数。如果增删了系统调用，必须做相应修改
 nr_system_calls = 72                           // 设置系统调用的数量为72
-!…….globl system_call.align 2system_call:! # 检查系统调用编号是否在合法范围内    
-cmpl \$nr_system_calls-1,%eax    
-ja bad_sys_call    
-push %ds    
+!…….globl system_call.align 2system_call:      // 定义一个全局符号system_call，并将其对齐到2的边界。
+!# 检查系统调用编号是否在合法范围内    
+cmpl \$nr_system_calls-1,%eax                  // 比较寄存器%eax和nr_system_calls-1的值。如果%eax大于nr_system_calls-1，则跳转到bad_sys_call
+ja bad_sys_call                                
+push %ds                                       // 将数据段寄存器（DS）、附加段寄存器（ES）和文件系统寄存器（FS）的值压入堆栈
 push %es    
 push %fs    
-pushl %edx    
-pushl %ecx! 
-# push %ebx,%ecx,%edx，是传递给系统调用的参数    
-pushl %ebx! # 让ds, es指向GDT，内核地址空间    
-movl $0x10,%edx    
+pushl %edx                                     // 将寄存器EDX和ECX的值压入堆栈
+pushl %ecx 
+!# push %ebx,%ecx,%edx，是传递给系统调用的参数    
+pushl %ebx                                     // 将寄存器EBX的值压入堆栈。这是传递给系统调用的参数
+!# 让ds, es指向GDT，内核地址空间    
+movl $0x10,%edx                                // 将0x10移动到寄存器EDX中，然后将EDX的值移动到DS和ES中。这使得DS和ES指向GDT，即内核地址空间
 mov %dx,%ds    
 mov %dx,%es    
-movl $0x17,%edx! 
-# 让fs指向LDT，用户地址空间    
+movl $0x17,%edx                                // 将0x17移动到寄存器EDX中，然后将EDX的值移动到FS中。这使得FS指向LDT，即用户地址空间
+!# 让fs指向LDT，用户地址空间    
 mov %dx,%fs    
-call sys_call_table(,%eax,4)    
-pushl %eax    
-movl current,%eax    
-cmpl $0,state(%eax)    
-jne reschedule    
-cmpl $0,counter(%eax)    
+call sys_call_table(,%eax,4)                   // 调用系统调用表中的函数。函数的索引是EAX的值 
+pushl %eax                                     // 将寄存器EAX的值压入堆栈
+movl current,%eax                              // 将当前进程的指针移动到EAX中
+cmpl $0,state(%eax)                            // 比较进程状态和0。如果不等于0，则跳转到reschedule
+jne reschedule                                  
+cmpl $0,counter(%eax)                          // 比较进程计数器和0。如果等于0，则跳转到reschedule
 je reschedule

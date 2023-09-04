@@ -1,0 +1,59 @@
+// 这段代码是Linux内核的一部分，它初始化了系统调用处理程序。
+
+// init/main.c
+// main函数调用了time_init，sched_init和buffer_init函数来初始化内核。
+void main(void){//    ……    time_init();    sched_init();    buffer_init(buffer_memory_end);//    ……}
+
+
+
+// kernel/sched.c
+// sched_init函数调用了set_system_gate宏来设置系统调用处理程序。这个宏将中断描述符表（IDT）中的第0x80项设置为指向system_call函数的系统门。
+void sched_init(void){//    ……    set_system_gate(0x80,&system_call);}
+
+
+
+// include/asm/system.h
+// set_system_gate宏调用了_set_gate宏来设置IDT项。这个宏使用内联汇编代码来设置IDT项的值。
+
+#define set_system_gate(n,addr) 
+\    _set_gate(&idt[n],15,3,addr)
+// 接受两个参数：n和addr。它调用_set_gate宏来设置IDT中的第n项，类型为15（表示这是一个陷阱门），特权级为3（表示用户模式下可以调用），地址为addr。
+
+#define _set_gate(gate_addr,type,dpl,addr)  // 四个参数：gate_addr，type，dpl和addr。它使用内联汇编代码来设置IDT项的值。
+                                            // 内联汇编代码使用约束来指定输入和输出操作数。例如，约束"i"表示操作数是一个立即数，约束"o"表示操作数是一个内存位置。
+\__asm__ ("movw %%dx,%%ax\n\t"   // 将寄存器dx的值移动到寄存器ax中
+\    "movw %0,%%dx\n\t"          // 将第一个输入操作数（即(short) (0x8000+(dpl<<13)+(type<<8))）移动到寄存器dx中
+\    "movl %%eax,%1\n\t"         // 将寄存器eax的值移动到第二个输出操作数（即*((char *) (gate_addr))）中
+\    "movl %%edx,%2"             // 将寄存器edx的值移动到第三个输出操作数（即*(4+(char *) (gate_addr))）中
+\    : 
+\    : "i" ((short) (0x8000+(dpl<<13)+(type<<8))),   // 将立即数(short) (0x8000+(dpl<<13)+(type<<8))移动到寄存器dx中
+\    "o" (*((char *) (gate_addr))),            // 将内存位置*((char *) (gate_addr))作为第二个输出操作数
+\    "o" (*(4+(char *) (gate_addr))),          // 将内存位置*(4+(char *) (gate_addr))作为第三个输出操作数
+\    "d" ((char *) (addr)),"a" (0x00080000))   // 将(char *) (addr)作为寄存器edx的初始值，将0x00080000作为寄存器eax的初始值
+
+// kernel/system_call.s
+!……! # 这是系统调用总数。如果增删了系统调用，必须做相应修改
+nr_system_calls = 72                           // 设置系统调用的数量为72
+!…….globl system_call.align 2system_call:! # 检查系统调用编号是否在合法范围内    
+cmpl \$nr_system_calls-1,%eax    
+ja bad_sys_call    
+push %ds    
+push %es    
+push %fs    
+pushl %edx    
+pushl %ecx! 
+# push %ebx,%ecx,%edx，是传递给系统调用的参数    
+pushl %ebx! # 让ds, es指向GDT，内核地址空间    
+movl $0x10,%edx    
+mov %dx,%ds    
+mov %dx,%es    
+movl $0x17,%edx! 
+# 让fs指向LDT，用户地址空间    
+mov %dx,%fs    
+call sys_call_table(,%eax,4)    
+pushl %eax    
+movl current,%eax    
+cmpl $0,state(%eax)    
+jne reschedule    
+cmpl $0,counter(%eax)    
+je reschedule

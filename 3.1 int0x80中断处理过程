@@ -52,10 +52,13 @@ mov %dx,%es
 movl $0x17,%edx                                // 将0x17移动到寄存器EDX中，然后将EDX的值移动到FS中。这使得FS指向LDT，即用户地址空间
 !# 让fs指向LDT，用户地址空间    
 mov %dx,%fs    
-call sys_call_table(,%eax,4)                   // 调用系统调用表中的函数。函数的索引是EAX的值 
+call sys_call_table(,%eax,4)                   // 调用系统调用表中的函数。函数的索引是EAX的值  // 可以在sys_call_table中增加自定义的函数！
 pushl %eax                                     // 将寄存器EAX的值压入堆栈
 movl current,%eax                              // 将当前进程的指针移动到EAX中
 cmpl $0,state(%eax)                            // 比较进程状态和0。如果不等于0，则跳转到reschedule
 jne reschedule                                  
 cmpl $0,counter(%eax)                          // 比较进程计数器和0。如果等于0，则跳转到reschedule
 je reschedule
+
+// include/linux/sys.h中定义了一个函数指针数组
+fn_ptr sys_call_table[] = { sys_setup, sys_exit, sys_fork, sys_read,...

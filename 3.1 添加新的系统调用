@@ -1,0 +1,21 @@
+///////////////////////////////////////////////////////////////
+1. 修改include/unistd.h, 添加新的系统调用编号宏定义(#define __NR_ xxx 72)
+2. 修改kernel/system_call.s, 修改系统调用总数(nr_system_calls=?)
+3. 修改include/linux/sys.h, 在文件开头声明即将创建的系统调用extern int sys_xxx函数，在sys_call_table表项中添加新的函数名称
+4. 新建一个xxx.c文件，实现具体的sys_xxx函数功能
+///////////////////////////////////////////////////////////////
+下面是xxx.c实现：(代码来自https://zhuanlan.zhihu.com/p/452389902)
+#include <asm/segment.h>        // 包含get_fs_byte和put_fs_byte函数的声明，这两个函数可以用于从用户空间读取和写入数据
+#include <errno.h>              // 包含了错误代码的定义，例如EINVAL
+#include <string.h>             // 包含字符串处理函数的声明，例如strcpy和strlen
+char _myname[24];               // 定义了一个全局变量，用于在内核空间保存字符串
+int sys_iam(const char *name)   // 定义了一个名为sys_iam的函数，它接受一个指向字符串的指针作为参数。
+char str[25]; int i = 0; do { str[i] = get_fs_byte(name + i); } while (i <= 25 && str[i++] != '\0');
+                                // 这段代码使用循环从用户空间读取字符串，并将其保存在局部变量str中。循环会在读取到25个字符或遇到空字符时结束。
+if (i > 24) { errno = EINVAL; i = -1; } else { strcpy(_myname, str); } return i;}
+                                // 这段代码检查读取的字符串长度是否超过24个字符。如果超过，则设置错误代码为EINVAL并返回-1。否则，使用strcpy函数将字符串从局部变量复制到全局变量中，并返回读取的字符数。
+int sys_whoami(char *name, unsigned int size)
+                                // 定义了一个名为sys_whoami的函数，它接受一个指向字符串的指针和一个无符号整数作为参数。指针指向用于保存结果的用户空间，无符号整数表示用户空间的大小。
+int length = strlen(_myname); printk("%s\n", _myname); if (size < length) { errno = EINVAL; length = -1; } else { int i = 0; for (i = 0; i < length; i++) { put_fs_byte(_myname[i], name + i); } } return length;}
+                                // 这段代码首先使用strlen函数计算全局变量中字符串的长度，然后使用printk函数将其输出到控制台。接着，它检查用户空间的大小是否小于字符串长度。如果是，则设置错误代码为EINVAL并返回-1。否则，使用循环将字符串从全局变量复制到用户空间，并返回复制的字符数。
+///////////////////////////////////////////////////////////////
